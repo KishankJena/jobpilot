@@ -1,5 +1,5 @@
 """
-Main FastAPI application factory and entry point.
+Main FastAPI application factory and entry point with PostgreSQL + pgvector support.
 """
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 
 from app.config.settings import settings
 from app.config.log_config import setup_logging, get_logger
-from app.db.database import init_db, close_db
+from app.db.database import init_db, close_db, verify_database_connection
 from app.exceptions.exceptions import JobPathException
 from app.services.auth.router import router as auth_router
 
@@ -29,14 +29,22 @@ async def lifespan(app: FastAPI):
     """
     # Startup event
     logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
+    logger.info(f"Database: {settings.DATABASE_URL}")
+    
     try:
+        # Verify PostgreSQL connection
+        is_connected = await verify_database_connection()
+        if not is_connected:
+            raise RuntimeError("PostgreSQL database is not reachable")
+        
+        # Initialize database with pgvector extension
         await init_db()
-        logger.info("Database initialized successfully")
+        logger.info("PostgreSQL and pgvector initialized successfully")
     except Exception as e:
-        logger.warning(f"Failed to initialize database: {str(e)}")
+        logger.critical(f"Failed to initialize database: {str(e)}")
         if not settings.DEBUG:
             raise
-        logger.info("Continuing startup in DEBUG mode without database")
+        logger.warning("Continuing startup in DEBUG mode without database")
     
     yield
     
@@ -58,7 +66,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.APP_NAME,
         version=settings.APP_VERSION,
-        description="Production-grade FastAPI backend for JobPath SaaS platform",
+        description="Production-grade FastAPI backend for JobPath SaaS with PostgreSQL + pgvector",
         docs_url="/docs",
         redoc_url="/redoc",
         openapi_url="/openapi.json",
@@ -101,15 +109,17 @@ def create_app() -> FastAPI:
     # Health check endpoint
     @app.get("/health", tags=["Health"])
     async def health_check():
-        """Health check endpoint.
+        """Health check endpoint with database status.
         
         Returns:
-            Status of the application
+            Status of the application and database
         """
+        db_connected = await verify_database_connection()
         return {
-            "status": "healthy",
+            "status": "healthy" if db_connected else "degraded",
             "app": settings.APP_NAME,
             "version": settings.APP_VERSION,
+            "database": "connected" if db_connected else "disconnected",
         }
     
     # Root endpoint
@@ -125,6 +135,7 @@ def create_app() -> FastAPI:
             "version": settings.APP_VERSION,
             "docs": "/docs",
             "redoc": "/redoc",
+            "database": "PostgreSQL with pgvector",
         }
     
     logger.info(f"FastAPI application '{settings.APP_NAME}' created successfully")
