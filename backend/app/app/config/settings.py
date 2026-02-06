@@ -13,12 +13,15 @@ class Settings(BaseSettings):
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = False
     
-    # Database
-    DATABASE_URL: str = "postgresql+asyncpg://user:password@localhost:5432/jobpath"
+    # Database (PostgreSQL with asyncpg)
+    DATABASE_URL: str = "postgresql+asyncpg://jobpath_user:secure_password@localhost:5432/jobpath_db"
     DB_POOL_SIZE: int = 20
     DB_MAX_OVERFLOW: int = 10
     DB_POOL_PRE_PING: bool = True
     DB_ECHO: bool = False
+    
+    # PostgreSQL Vector Configuration
+    PGVECTOR_DIMENSION: int = 1536  # For OpenAI embeddings
     
     # JWT Configuration
     JWT_SECRET_KEY: str = "your-secret-key-change-in-production"
