@@ -11,14 +11,24 @@ from app.config.settings import settings
 logger = logging.getLogger(__name__)
 
 
-# Create async engine for PostgreSQL
+# Determine engine arguments based on database type
+engine_kwargs = {
+    "echo": settings.DB_ECHO,
+    "pool_pre_ping": settings.DB_POOL_PRE_PING,
+}
+
+# Add pooling arguments ONLY for PostgreSQL
+if settings.DATABASE_URL.startswith("postgresql"):
+    engine_kwargs.update({
+        "pool_size": settings.DB_POOL_SIZE,
+        "max_overflow": settings.DB_MAX_OVERFLOW,
+        "pool_recycle": 3600,
+    })
+
+# Create async engine
 engine = create_async_engine(
     settings.DATABASE_URL,
-    echo=settings.DB_ECHO,
-    pool_size=settings.DB_POOL_SIZE,
-    max_overflow=settings.DB_MAX_OVERFLOW,
-    pool_pre_ping=settings.DB_POOL_PRE_PING,
-    pool_recycle=3600,  # Recycle connections every hour
+    **engine_kwargs
 )
 
 # Create async session factory
@@ -49,14 +59,10 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def init_pgvector_extension(connection) -> None:
-    """Initialize pgvector extension if not already exists.
-    
-    Args:
-        connection: Database connection
+    """Initialize pgvector extension if not already exists (PostgreSQL only)."""
+    if "postgresql" not in str(connection.engine.url):
+        return
         
-    Raises:
-        Exception: If pgvector extension cannot be created
-    """
     try:
         await connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
         logger.info("pgvector extension enabled successfully")
@@ -94,9 +100,10 @@ async def init_db() -> None:
     if not await verify_database_connection():
         raise RuntimeError("Cannot connect to PostgreSQL database. Check DATABASE_URL in .env")
     
-    # Initialize pgvector extension
-    async with engine.begin() as conn:
-        await init_pgvector_extension(conn)
+    # Initialize pgvector extension (PostgreSQL only)
+    if settings.DATABASE_URL.startswith("postgresql"):
+        async with engine.begin() as conn:
+            await init_pgvector_extension(conn)
     
     # Create all tables
     from app.model.models import Base

@@ -11,6 +11,13 @@ from app.config.log_config import setup_logging, get_logger
 from app.db.database import init_db, close_db, verify_database_connection
 from app.exceptions.exceptions import JobPathException
 from app.services.auth.router import router as auth_router
+from app.services.user.router import router as user_router
+from app.services.job_application.router import router as job_application_router
+from app.services.resume.router import router as resume_router
+from app.services.wellbeing.router import router as wellbeing_router
+from app.services.notifications.router import router as notifications_router
+from app.services.analytics.router import router as analytics_router
+from app.services.system.router import router as system_router
 
 # Setup logging
 setup_logging(
@@ -84,6 +91,13 @@ def create_app() -> FastAPI:
     
     # Include routers
     app.include_router(auth_router)
+    app.include_router(user_router)
+    app.include_router(job_application_router)
+    app.include_router(resume_router)
+    app.include_router(wellbeing_router)
+    app.include_router(notifications_router)
+    app.include_router(analytics_router)
+    app.include_router(system_router)
     
     # Exception handler
     @app.exception_handler(JobPathException)
